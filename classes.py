@@ -226,11 +226,11 @@ class Solution:
             local = {}
             if not np.any(line == 1):
                 continue
-            id_type = np.argmax(line)
+            id_type = int(np.argmax(line))
             local["id"] = i + 1
             local["substation_type"] = id_type + 1
 
-            cable_type_id = np.argmax(self.y_off_on[i])
+            cable_type_id = int(np.argmax(self.y_off_on[i]))
             local["land_cable_type"] = cable_type_id + 1
 
             result["substations"].append(local)
@@ -239,10 +239,13 @@ class Solution:
 
         for i, line in enumerate(self.y_off_off):
             local = {}
-            for j in range(i, len(self.y_off_off.shape[1])):
+            sub_sub_cable_type = -1
+            for j in range(i, self.y_off_off.shape[1]):
                 if not np.any(self.y_off_off[i, j, :] == 1):
                     continue
-                sub_sub_cable_type = np.argmax(self.y_off_off[i, j, :]) + 1
+                sub_sub_cable_type = int(np.argmax(self.y_off_off[i, j, :]) + 1)
+            if sub_sub_cable_type == -1 :
+                continue
             local["substation_id"] = i + 1
             local["other_substation_id"] = j + 1
             local["cable_type"] = sub_sub_cable_type
@@ -254,12 +257,13 @@ class Solution:
             local = {}
             if not np.any(line == 1):
                 continue
-            id_sub = np.argmax(self.z[i]) + 1
+            id_sub = int(np.argmax(self.z[i]) + 1)
             local["id"] = i + 1
             local["substation_id"] = id_sub
             result["turbines"].append(local)
 
         with open(filepath, "w") as f:
+            print(result)
             json.dump(result, f)
 
         logger.info("Results exported to JSON.")
