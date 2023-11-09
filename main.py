@@ -6,14 +6,10 @@ size = instances_size[0]
 
 pathfile = f'./instances/{size}.json'
 
-instance = Instance(filepath)
+f = open(pathfile)
+ 
+# returns JSON object as 
+# a dictionary
+data = json.load(f)
 
-open_stations = instance.stations
-
-# Calcul de distances
-distances = np.zeros(shape=(len(instance.turbines), len(open_stations)))
-for i, station in enumerate(open_stations):
-    for j, turbine in enumerate(instance.turbines):
-        distances[j,i] = station.distance(turbine)
-
-print(distances)
+len(data['substation_location'])
