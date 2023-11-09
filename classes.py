@@ -49,6 +49,7 @@ class CoordinatePoint:
         return None
 
     def distance(self, other):
+        assert isinstance(other, CoordinatePoint)
         return np.sqrt((self.x - other.x) ** 2 + (self.y - other.y) ** 2)
 
 
@@ -86,10 +87,30 @@ class LandStation(Station):
         args = {"id": 0, "x": 0, "y": 0}
         super().__init__(args)
 
+class SubstationType:
+    cost: float
+    rating: float
+    probability_of_failure: float
+    id: int
+
+    def __init__(self, dict) -> None:
+        self.cost = dict["cost"]
+        self.rating = dict["rating"]
+        self.probability_of_failure = dict["probability_of_failure"]
+        self.id = dict["id"]
+
+        return None
+
 
 class Substation(Station):
-    def __init__(self, dict) -> None:
+
+    substation_type: SubstationType
+
+    def __init__(self, dict, substation_type) -> None:
         super().__init__(dict)
+        self.substation_type = substation_type
+
+        return None
 
 
 class Instance:
@@ -97,6 +118,7 @@ class Instance:
     turbines: List[Turbine]
     cables: List[Cable]
     scenarios: List[Scenario]
+    substation_types: List[SubstationType]
 
     fixed_cost_cable: float
     variable_cost_cables: float
@@ -142,6 +164,13 @@ class Instance:
         for station in stations:
             new_station = Station(station)
             self.stations.append(new_station)
+
+        # Substation types
+        self.substation_types = []
+        substation_types = data["substation_types"]
+        for substation_type in substation_types:
+            new_substation_type = SubstationType(substation_type)
+            self.substation_types.append(new_substation_type)
 
         general_params = data["general_parameters"]
 
