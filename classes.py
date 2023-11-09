@@ -143,11 +143,13 @@ class Instance:
             new_station = Station(station)
             self.stations.append(new_station)
 
-        self.fixed_cost_cable = data["fixed_cost_cable"]
-        self.variable_cost_cables = data["variable_cost_cables"]
-        self.curtailing_penalty = data["curtailing_penalty"]
-        self.curtailing_cost = data["curtailing_cost"]
-        self.maximum_power = data["maximum_power"]
-        self.maximum_curtailing = data["maximum_curtailing"]
+        general_params = data["general_parameters"]
+
+        self.fixed_cost_cable = general_params["fixed_cost_cable"]
+        self.variable_cost_cables = general_params["variable_cost_cable"]
+        self.curtailing_penalty = general_params["curtailing_penalty"]
+        self.curtailing_cost = general_params["curtailing_cost"]
+        self.maximum_power = general_params["maximum_power"]
+        self.maximum_curtailing = general_params["maximum_curtailing"]
 
         return None
