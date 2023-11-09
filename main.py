@@ -1,6 +1,3 @@
-import json 
-import numpy as np 
-
 from classes import *
 
 instances_size = ['toy', 'small', 'medium', 'large', 'huge']
