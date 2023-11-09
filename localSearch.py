@@ -298,6 +298,7 @@ def mainLSinst(instance):
         solCplmt = SolutionComplement(instance, initSol)
         nbIters = -1
         voisType = 0
+        nbIterWOSucc = 0
         while nbIters < nbMaxIters :
             nbIters += 1
             success, initSol = getNeighbor(instance, initSol, solCplmt, voisType)
@@ -309,7 +310,7 @@ def mainLSinst(instance):
             if nbIterWOSucc >= 10 :
                 voisType += 1
                 print("Upgrading to voisinage ", voisType)
-                if voisType == 1:
+                if voisType == 3:
                     break
                 nbIterWOSucc = 0
         initSol.export_solution_json("large_Try_Fin.json")
