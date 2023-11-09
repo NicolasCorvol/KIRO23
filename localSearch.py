@@ -4,7 +4,7 @@ from classes import Instance, Solution
 from copy import deepcopy
 
 nbRandomSols = 1
-nbMaxIters = 700
+nbMaxIters = 5000
 
 class SolutionComplement:
     openStations: np.ndarray # [s] if station is open
@@ -192,6 +192,8 @@ def getNeighbor3(instance, initSol, solCplmt):
 def getNeighbor2(instance, initSol, solCplmt):
     # Neighbor : close station
     openStationsIndexes = [s for s in range(len(instance.stations)) if solCplmt.openStations[s] == 1]
+    if (len(openStationsIndexes) == 1):
+        return False, initSol
     randS = np.random.choice(openStationsIndexes)
     if solCplmt.openStations[randS] == 0:
         print("Not OK")
@@ -294,7 +296,7 @@ def getNeighbor(instance, initSol, solCplmt, voisType):
 def mainLSinst(instance):
     for rdSol in range(nbRandomSols):
         initSol = getRandomSol(instance)
-        initSol.export_solution_json("large_Try.json")
+        initSol.export_solution_json("small_Try.json")
         solCplmt = SolutionComplement(instance, initSol)
         nbIters = -1
         voisType = 0
@@ -313,9 +315,9 @@ def mainLSinst(instance):
                 if voisType == 3:
                     break
                 nbIterWOSucc = 0
-        initSol.export_solution_json("large_Try_Fin.json")
+        initSol.export_solution_json("small_Try_Fin.json")
 
 def mainLS():
-    return mainLSinst(Instance("./instances/large.json"))
+    return mainLSinst(Instance("./instances/small.json"))
 
 mainLS()
