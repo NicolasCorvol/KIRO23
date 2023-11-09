@@ -1,6 +1,7 @@
 import json
 from typing import List
 import numpy as np
+from logzero import logger
 
 
 class Cable:
@@ -87,6 +88,7 @@ class LandStation(Station):
         args = {"id": 0, "x": 0, "y": 0}
         super().__init__(args)
 
+
 class SubstationType:
     cost: float
     rating: float
@@ -103,7 +105,6 @@ class SubstationType:
 
 
 class Substation(Station):
-
     substation_type: SubstationType
 
     def __init__(self, dict, substation_type) -> None:
@@ -180,5 +181,87 @@ class Instance:
         self.curtailing_cost = general_params["curtailing_cost"]
         self.maximum_power = general_params["maximum_power"]
         self.maximum_curtailing = general_params["maximum_curtailing"]
+
+        return None
+
+    def get_nb_turbines(self):
+        return len(self.turbines)
+
+
+class Solution:
+    instance: Instance
+
+    # Shape (nb_positions_substations, nb_substation_types)
+    x: np.ndarray
+
+    # Cables offshore to onshore: shape (nb_substations, nb_cable_types)
+    y_off_on: np.ndarray
+
+    # Cables offshore to offshore: shape (nb_substations, nb_substations, nb_types_cables_sub_to_sub)
+    y_off_off: np.ndarray
+
+    # shape (nb_turbines, nb_substations)
+    z: np.ndarray
+
+    def __init__(self, instance, x, y_off_on, y_off_off, z) -> None:
+        self.instance = instance
+        self.x = x
+        self.y_off_on = y_off_on
+        self.y_off_off = y_off_off
+        self.z = z
+
+        return None
+
+    def export_solution_json(self, filepath):
+        # TODO
+        # Substations open
+        # substation_substation_cables
+        # turbines
+
+        result = {"substations": [], "substation_substation_cables": [], "turbines": []}
+
+        for i, line in enumerate(self.x):
+            local = {}
+            if not np.any(line == 1):
+                continue
+            id_type = np.argmax(line)
+            local["id"] = i + 1
+            local["substation_type"] = id_type + 1
+
+            cable_type_id = np.argmax(self.y_off_on[i])
+            local["land_cable_type"] = cable_type_id + 1
+
+            result["substations"].append(local)
+
+        # Substation to substation cables
+
+        for i, line in enumerate(self.y_off_off):
+            local = {}
+            for j in range(i, len(self.y_off_off.shape[1])):
+                if not np.any(self.y_off_off[i, j, :] == 1):
+                    continue
+                sub_sub_cable_type = np.argmax(self.y_off_off[i, j, :]) + 1
+            local["substation_id"] = i + 1
+            local["other_substation_id"] = j + 1
+            local["cable_type"] = sub_sub_cable_type
+
+            result["substation_substation_cables"].append(local)
+
+        # Turbines
+        for i, line in enumerate(self.z):
+            local = {}
+            if not np.any(line == 1):
+                continue
+            id_sub = np.argmax(self.z[i]) + 1
+            local["id"] = i + 1
+            local["substation_id"] = id_sub
+            result["turbines"].append(local)
+
+        with open(filepath, "w") as f:
+            json.dump(result, f)
+
+        logger.info("Results exported to JSON.")
+
+        #  open_stations_types = np.argmax(self.x[np.any(self.x == 1, axis=1)], axis=1)
 
         return None
