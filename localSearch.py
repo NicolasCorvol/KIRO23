@@ -1,9 +1,10 @@
 import random as rd
 import numpy as np
 from classes import Instance, Solution
+from copy import deepcopy
 
 nbRandomSols = 1
-nbMaxIters = 100
+nbMaxIters = 700
 
 class SolutionComplement:
     openStations: np.ndarray # [s] if station is open
@@ -102,7 +103,7 @@ def getNeighbor0(instance, initSol, solCplmt):
             solCplmt.lossesInStatCable[s, scen] = max(solCplmt.powerInStat[s, scen] - nextCapacityCable, 0)
             solCplmt.lossesInStat[currentSubstation, scen] = solCplmt.powerReceived[currentSubstation, scen] - solCplmt.powerInStat[currentSubstation, scen]
             solCplmt.lossesInStatCable[currentSubstation, scen] = max(solCplmt.powerInStat[currentSubstation, scen] - currentCapacityCable, 0)
-        diffLoss = currentSubstationLoss + nextSubstationLoss - solCplmt.lossesInStat[currentSubstation, :].sum() + solCplmt.lossesInStatCable[currentSubstation, :].sum() - solCplmt.lossesInStat[s, :].sum() + solCplmt.lossesInStatCable[s, :].sum()
+        diffLoss = currentSubstationLoss - nextSubstationLoss
         diff += instance.curtailing_cost * diffLoss
         if diff > 0:
             initSol.z[randTurbine, currentSubstation] = 0
@@ -119,30 +120,157 @@ def getNeighbor0(instance, initSol, solCplmt):
             solCplmt.lossesInStatCable[currentSubstation, scen] = max(solCplmt.powerInStat[currentSubstation, scen] - currentCapacityCable, 0)
     return False, initSol
 
-def getNeighbor1(instance, initSol, solCplmt):
+def getNeighbor3(instance, initSol, solCplmt):
     # Neighbor : ouverture station
-    if sum(solCplmt.openStations) >= 0.8 * len(solCplmt.openStations):
+    if sum(solCplmt.openStations) >= 0.8 * len(solCplmt.openStations) or solCplmt.lossesInStat.sum() == 0:
         return False, initSol
     randS = rd.randint(0, len(instance.stations) - 1)
     while solCplmt.openStations[randS] == 1:
         randS = rd.randint(0, len(instance.stations) - 1)
 
+    solCplmtCopy = deepcopy(solCplmt)
+    
+    turbinesToChange = []
+
     solCplmt.openStations[randS] = 1
+    randCableType = rd.randint(0, len(instance.land_to_sub_cables) - 1)
+    randStatType = rd.randint(0, len(instance.substation_types) - 1)
+    initSol.x[randS, randStatType] = 1
+    initSol.y_off_on[randS, randCableType] = 1
+    diff = - instance.substation_types[randStatType].cost
+
+
     for t in range(len(instance.turbines)):
         currentStation = np.argmax(initSol.z[t, :])
-        if instance.stations[randS].distance(instance.turbines[t]) < instance.stations[randS].distance(instance.turbines[t]):
-            #TODO
-            return
-
-    return
+        currentSubstationLoss = solCplmt.lossesInStat[currentStation, :].sum() + solCplmt.lossesInStatCable[currentStation, :].sum()
+        stationType = np.argmax(initSol.x[currentStation, :]) if np.any(initSol.x[currentStation, :] == 1) else -1
+        cableType = np.argmax(initSol.y_off_on[currentStation, :]) if np.any(initSol.y_off_on[currentStation, :] == 1) else -1
+        currentCapacityStat = instance.substation_types[stationType].rating
+        currentCapacityCable = instance.land_to_sub_cables[cableType].rating
+        if instance.stations[randS].distance(instance.turbines[t]) < instance.stations[randS].distance(instance.turbines[t]) or solCplmt.lossesInStat[currentStation, :].sum() > 0:
+            diffLoc = instance.variable_cost_cables * (instance.stations[currentStation].distance(instance.turbines[t]) - instance.stations[randS].distance(instance.turbines[t]))
+            nextSubstationLoss = solCplmt.lossesInStat[randS, :].sum() + solCplmt.lossesInStat[randS, :].sum()
+            nextstationType = np.argmax(initSol.x[randS, :]) if np.any(initSol.x[randS, :] == 1) else -1
+            nextcableType = np.argmax(initSol.y_off_on[randS, :]) if np.any(initSol.y_off_on[randS, :] == 1) else -1
+            nextCapacityStat = instance.substation_types[nextstationType].rating
+            nextCapacityCable = instance.land_to_sub_cables[nextcableType].rating
+            for scen in range(len(instance.scenarios)):
+                solCplmt.powerReceived[currentStation, scen] -= instance.scenarios[scen].power_generation
+                solCplmt.powerReceived[randS, scen] += instance.scenarios[scen].power_generation
+                solCplmt.powerInStat[currentStation, scen] = min(solCplmt.powerReceived[currentStation, scen], currentCapacityStat)
+                solCplmt.powerInStat[randS, scen] = min(solCplmt.powerReceived[randS, scen], nextCapacityStat)
+                solCplmt.lossesInStat[randS, scen] = solCplmt.powerReceived[randS, scen] - solCplmt.powerInStat[randS, scen]
+                solCplmt.lossesInStatCable[randS, scen] = max(solCplmt.powerInStat[randS, scen] - nextCapacityCable, 0)
+                solCplmt.lossesInStat[currentStation, scen] = solCplmt.powerReceived[currentStation, scen] - solCplmt.powerInStat[currentStation, scen]
+                solCplmt.lossesInStatCable[currentStation, scen] = max(solCplmt.powerInStat[currentStation, scen] - currentCapacityCable, 0)
+            diffLoss = currentSubstationLoss + nextSubstationLoss - solCplmt.lossesInStat[currentStation, :].sum() + solCplmt.lossesInStatCable[currentStation, :].sum() - solCplmt.lossesInStat[randS, :].sum() + solCplmt.lossesInStatCable[randS, :].sum()
+            diffLoc += instance.curtailing_cost * diffLoss
+            if diffLoc > 0:
+                turbinesToChange.append(t)
+                diff += diffLoc
+            else :
+                solCplmt.powerReceived[currentStation, scen] += instance.scenarios[scen].power_generation
+                solCplmt.powerReceived[randS, scen] -= instance.scenarios[scen].power_generation
+                solCplmt.powerInStat[currentStation, scen] = min(solCplmt.powerReceived[currentStation, scen], currentCapacityStat)
+                solCplmt.powerInStat[randS, scen] = min(solCplmt.powerReceived[randS, scen], nextCapacityStat)
+                solCplmt.lossesInStat[randS, scen] = solCplmt.powerReceived[randS, scen] - solCplmt.powerInStat[randS, scen]
+                solCplmt.lossesInStatCable[randS, scen] = max(solCplmt.powerInStat[randS, scen] - nextCapacityCable, 0)
+                solCplmt.lossesInStat[currentStation, scen] = solCplmt.powerReceived[currentStation, scen] - solCplmt.powerInStat[currentStation, scen]
+                solCplmt.lossesInStatCable[currentStation, scen] = max(solCplmt.powerInStat[currentStation, scen] - currentCapacityCable, 0)
+    if diff > 0:
+        for t in turbinesToChange:
+            currentStation = np.argmax(initSol.z[t, :])
+            initSol.z[t, currentStation] = 0
+            initSol.z[t, randS] = 1
+        return True, initSol
+    else:
+        initSol.x[randS, randStatType] = 0
+        initSol.yonoff[randS, randCableType] = 0
+        solCplmt = solCplmtCopy
+    return False, initSol
 
 def getNeighbor2(instance, initSol, solCplmt):
-    # Neighbor : swap station
-    return
+    # Neighbor : close station
+    openStationsIndexes = [s for s in range(len(instance.stations)) if solCplmt.openStations[s] == 1]
+    randS = np.random.choice(openStationsIndexes)
+    if solCplmt.openStations[randS] == 0:
+        print("Not OK")
+        return
+    
+    newSol = deepcopy(initSol)
+    newSolCplmt = deepcopy(solCplmt)
 
-def getNeighbor3(instance, initSol, solCplmt):
-    # Neighbor : changer type de cable
-    return
+    solCplmt.openStations[randS] = 0
+    randCableType = np.argmax(newSol.y_off_on[randS, :])
+    randStatType = np.argmax(newSol.x[randS, :])
+    newSol.x[randS, randStatType] = 0
+    newSol.y_off_on[randS, randCableType] = 0
+    diff = instance.substation_types[randStatType].cost
+    print(diff)
+
+    turbinesToChange = []
+    for t in range(len(instance.turbines)):
+        if newSol.z[t, randS] == 1 :
+            turbinesToChange.append(t)
+            bestS = np.argmax(solCplmt.openStations)
+            bestDist = instance.stations[bestS].distance(instance.turbines[t])
+            for s in range(len(instance.stations)) :
+                if solCplmt.openStations[s] == 0: 
+                    continue
+                dist = instance.stations[s].distance(instance.turbines[t])
+                if dist < bestDist :
+                    dist = bestDist
+                    bestS = s
+            newSol.z[t, s] = 1
+            newSol.z[t, randS] = 0
+            stationType = np.argmax(initSol.x[bestS, :]) if np.any(initSol.x[bestS, :] == 1) else -1
+            cableType = np.argmax(initSol.y_off_on[bestS, :]) if np.any(initSol.y_off_on[bestS, :] == 1) else -1
+            capacityStat = instance.substation_types[stationType].rating
+            capacityCable = instance.land_to_sub_cables[cableType].rating
+            for scen in range(len(instance.scenarios)):
+                newSolCplmt.powerReceived[bestS, scen] += instance.scenarios[scen].power_generation
+                newSolCplmt.powerInStat[bestS, scen] = min(solCplmt.powerReceived[bestS, scen], capacityStat)
+                newSolCplmt.lossesInStat[bestS, scen] = solCplmt.powerReceived[bestS, scen] - solCplmt.powerInStat[bestS, scen]
+                newSolCplmt.lossesInStatCable[bestS, scen] = max(solCplmt.powerInStat[bestS, scen] - capacityCable, 0)
+            diff += instance.curtailing_cost * (solCplmt.lossesInStat[bestS, :].sum() + solCplmt.lossesInStatCable[bestS].sum() - newSolCplmt.lossesInStat[bestS, :].sum() - newSolCplmt.lossesInStatCable[bestS].sum())
+
+    if diff > 0:
+        solCplmt = newSolCplmt
+        return True, newSol
+    else:
+        return False, initSol
+
+def getNeighbor1(instance, initSol, solCplmt):
+    # Neighbor : changer type de station
+    openStationsIndexes = [s for s in range(len(instance.stations)) if solCplmt.openStations[s] == 1]
+    randS = np.random.choice(openStationsIndexes)
+    randCableType = np.argmax(initSol.y_off_on[randS, :])
+    randSType = np.argmax(initSol.x[randS, :])
+    newSType = rd.randint(0, len(instance.substation_types) - 1)
+    newcapacityStat = instance.substation_types[newSType].rating
+    capacityCable = instance.land_to_sub_cables[randCableType].rating
+    diff = instance.substation_types[randSType].cost - instance.substation_types[newSType].cost
+    
+    diffLoss = 0
+
+    for scen in range(len(instance.scenarios)):
+        newPowerInStat = min(solCplmt.powerReceived[randS, scen], newcapacityStat)
+        diffLoss += solCplmt.lossesInStat[randS, scen] - (solCplmt.powerReceived[randS, scen] - solCplmt.powerInStat[randS, scen])
+        diffLoss += solCplmt.lossesInStatCable[randS, scen] - max(newPowerInStat - capacityCable, 0)
+    
+    diff += instance.curtailing_cost * diffLoss
+    
+    if diff > 0:
+        initSol.x[randS, newSType] = 1
+        initSol.x[randS, randSType] = 0
+        for scen in range(len(instance.scenarios)):
+            solCplmt.powerInStat[randS, scen] = min(solCplmt.powerReceived[randS, scen], newcapacityStat)
+            solCplmt.lossesInStat[randS, scen] = solCplmt.powerReceived[randS, scen] - solCplmt.powerInStat[randS, scen]
+            solCplmt.lossesInStatCable[randS, scen] = max(solCplmt.powerInStat[randS, scen] - capacityCable, 0)
+        print("We found a good neighbor 1")
+        return True, initSol
+    else : 
+        return False, initSol
 
 def getNeighbor4(instance, initSol, solCplmt):
     # Neighbor : changer type de station
@@ -166,37 +294,27 @@ def getNeighbor(instance, initSol, solCplmt, voisType):
 def mainLSinst(instance):
     for rdSol in range(nbRandomSols):
         initSol = getRandomSol(instance)
-        initSol.export_solution_json("huge_Try.json")
+        initSol.export_solution_json("large_Try.json")
         solCplmt = SolutionComplement(instance, initSol)
         nbIters = -1
+        voisType = 0
         while nbIters < nbMaxIters :
             nbIters += 1
-            success, initSol = getNeighbor0(instance, initSol, solCplmt)
-        initSol.export_solution_json("huge_Try_Fin.json")
-            
-        #print(initSol.z)
-        #print(solCplmt.powerReceived)
-        #print(solCplmt.lossesInStat)
-        #print(solCplmt.powerInStat)
-        #print(solCplmt.lossesInStatCable)
-        """nbIter = -1
-        nbIterWOSucc = 0
-        voisType = 0
-        while True:
-            nbIter += 1
-            success, initSol = getNeighbor(instance, initSol, voisType)
+            success, initSol = getNeighbor(instance, initSol, solCplmt, voisType)
             if (success) :
                 nbIterWOSucc = 0
-                if (voisType == 4):
-                    break
-                voisType += 1
             else :
                 nbIterWOSucc += 1
-            if nbIterWOSucc > 50 :
+    
+            if nbIterWOSucc >= 10 :
                 voisType += 1
-                nbIterWOSucc = 0"""
+                print("Upgrading to voisinage ", voisType)
+                if voisType == 1:
+                    break
+                nbIterWOSucc = 0
+        initSol.export_solution_json("large_Try_Fin.json")
 
 def mainLS():
-    return mainLSinst(Instance("./instances/huge.json"))
+    return mainLSinst(Instance("./instances/large.json"))
 
 mainLS()
