@@ -3,6 +3,7 @@ import numpy as np
 from classes import Instance, Solution
 
 nbRandomSols = 1
+nbMaxIters = 100
 
 class SolutionComplement:
     openStations: np.ndarray # [s] if station is open
@@ -86,7 +87,7 @@ def getNeighbor0(instance, initSol, solCplmt):
         if s == currentSubstation or solCplmt.openStations[s] == 0:
             continue
         # Station is available : determine change cost
-        diff += instance.variable_cost_cables * (instance.stations[currentSubstation].distance(instance.turbines[randTurbine]) - instance.stations[s].distance(instance.turbines[randTurbine]))
+        diff = instance.variable_cost_cables * (instance.stations[currentSubstation].distance(instance.turbines[randTurbine]) - instance.stations[s].distance(instance.turbines[randTurbine]))
         nextSubstationLoss = solCplmt.lossesInStat[s, :].sum() + solCplmt.lossesInStat[s, :].sum()
         nextstationType = np.argmax(initSol.x[s, :]) if np.any(initSol.x[s, :] == 1) else -1
         nextcableType = np.argmax(initSol.y_off_on[s, :]) if np.any(initSol.y_off_on[s, :] == 1) else -1
@@ -101,7 +102,7 @@ def getNeighbor0(instance, initSol, solCplmt):
             solCplmt.lossesInStatCable[s, scen] = max(solCplmt.powerInStat[s, scen] - nextCapacityCable, 0)
             solCplmt.lossesInStat[currentSubstation, scen] = solCplmt.powerReceived[currentSubstation, scen] - solCplmt.powerInStat[currentSubstation, scen]
             solCplmt.lossesInStatCable[currentSubstation, scen] = max(solCplmt.powerInStat[currentSubstation, scen] - currentCapacityCable, 0)
-        diffLoss += currentSubstationLoss + nextSubstationLoss - solCplmt.lossesInStat[currentSubstation, :].sum() + solCplmt.lossesInStatCable[currentSubstation, :].sum() - solCplmt.lossesInStat[s, :].sum() + solCplmt.lossesInStatCable[s, :].sum()
+        diffLoss = currentSubstationLoss + nextSubstationLoss - solCplmt.lossesInStat[currentSubstation, :].sum() + solCplmt.lossesInStatCable[currentSubstation, :].sum() - solCplmt.lossesInStat[s, :].sum() + solCplmt.lossesInStatCable[s, :].sum()
         diff += instance.curtailing_cost * diffLoss
         if diff > 0:
             initSol.z[randTurbine, currentSubstation] = 0
@@ -120,6 +121,19 @@ def getNeighbor0(instance, initSol, solCplmt):
 
 def getNeighbor1(instance, initSol, solCplmt):
     # Neighbor : ouverture station
+    if sum(solCplmt.openStations) >= 0.8 * len(solCplmt.openStations):
+        return False, initSol
+    randS = rd.randint(0, len(instance.stations) - 1)
+    while solCplmt.openStations[randS] == 1:
+        randS = rd.randint(0, len(instance.stations) - 1)
+
+    solCplmt.openStations[randS] = 1
+    for t in range(len(instance.turbines)):
+        currentStation = np.argmax(initSol.z[t, :])
+        if instance.stations[randS].distance(instance.turbines[t]) < instance.stations[randS].distance(instance.turbines[t]):
+            #TODO
+            return
+
     return
 
 def getNeighbor2(instance, initSol, solCplmt):
@@ -154,11 +168,12 @@ def mainLSinst(instance):
         initSol = getRandomSol(instance)
         initSol.export_solution_json("huge_Try.json")
         solCplmt = SolutionComplement(instance, initSol)
-        while True :
+        nbIters = -1
+        while nbIters < nbMaxIters :
+            nbIters += 1
             success, initSol = getNeighbor0(instance, initSol, solCplmt)
-            if success : 
-                initSol.export_solution_json("toy_Try_Better.json")
-                break
+        initSol.export_solution_json("huge_Try_Fin.json")
+            
         #print(initSol.z)
         #print(solCplmt.powerReceived)
         #print(solCplmt.lossesInStat)
