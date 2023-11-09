@@ -48,7 +48,7 @@ class CoordinatePoint:
 
         return None
 
-    def distance(self, other: CoordinatePoint):
+    def distance(self, other):
         return np.sqrt((self.x - other.x) ** 2 + (self.y - other.y) ** 2)
 
 
@@ -138,7 +138,7 @@ class Instance:
 
         # Stations
         self.stations = []
-        stations = data["wind_stations"]
+        stations = data["substation_locations"]
         for station in stations:
             new_station = Station(station)
             self.stations.append(new_station)
