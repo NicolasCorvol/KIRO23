@@ -312,7 +312,7 @@ def mainLSinst(instance):
             if nbIterWOSucc >= 10 :
                 voisType += 1
                 print("Upgrading to voisinage ", voisType)
-                if voisType == 3:
+                if voisType == 2:
                     break
                 nbIterWOSucc = 0
         initSol.export_solution_json("small_Try_Fin.json")
