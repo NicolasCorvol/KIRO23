@@ -117,7 +117,8 @@ class Substation(Station):
 class Instance:
     stations: List[Station]
     turbines: List[Turbine]
-    cables: List[Cable]
+    land_to_sub_cables: List[LandToSubstationCable]
+    sub_sub_cable_types: List[SubstationToSubstationCable]
     scenarios: List[Scenario]
     substation_types: List[SubstationType]
 
@@ -133,17 +134,18 @@ class Instance:
             data = json.load(f)
 
         # Land substation cable types
-        self.cables = []
+        self.land_to_sub_cables = []
         land_substation_cable_types = data["land_substation_cable_types"]
         for land_substation_cable_type in land_substation_cable_types:
             new_cable = LandToSubstationCable(land_substation_cable_type)
-            self.cables.append(new_cable)
+            self.land_to_sub_cables.append(new_cable)
 
         # Substation to sub cable types
+        self.sub_to_sub_cables = []
         sub_sub_cable_types = data["substation_substation_cable_types"]
         for sub_sub_cable_type in sub_sub_cable_types:
             new_cable = SubstationToSubstationCable(sub_sub_cable_type)
-            self.cables.append(new_cable)
+            self.sub_to_sub_cables.append(new_cable)
 
         # Turbines
         self.turbines = []
